@@ -4,12 +4,21 @@ import {
   Text,
   View,
   ScrollView,
-  TouchableOpacity,
   useColorScheme,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/theme';
+import { Pressable } from 'react-native';
 
 type Category = 'Inspiration' | 'Wisdom' | 'Success' | 'Life' | 'Love';
 
@@ -61,6 +70,23 @@ function getQuoteOfTheDay(all: Quote[]): Quote {
   return all[((day % all.length) + all.length) % all.length];
 }
 
+function PressableScale({ onPress, style, children, ...props }: any) {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <Animated.View style={[animStyle, style]}>
+      <Pressable
+        onPressIn={() => { scale.value = withSpring(0.95); }}
+        onPressOut={() => { scale.value = withSpring(1); }}
+        onPress={(e) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress?.(e); }}
+        {...props}
+      >
+        {children}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 export default function IndexScreen() {
   const scheme = useColorScheme() ?? 'light';
   const colors = Colors[scheme];
@@ -81,12 +107,15 @@ export default function IndexScreen() {
   }, [favorites]);
 
   const toggleFavorite = useCallback((id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setFavorites((prev) =>
       prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
     );
   }, []);
 
   const quoteOfTheDay = useMemo(() => getQuoteOfTheDay(QUOTES), []);
+  const accent = '#7C3AED';
+  const muted = isDark ? '#9CA3AF' : '#6B7280';
 
   const filteredQuotes = useMemo(() => {
     let list = QUOTES;
@@ -95,90 +124,110 @@ export default function IndexScreen() {
     return list;
   }, [selectedCategory, showFavoritesOnly, favorites]);
 
-  const cardBg = isDark ? '#1C1F21' : '#F8F9FA';
-  const borderColor = isDark ? '#2C2F31' : '#E5E7EB';
-  const accent = '#7C3AED';
-  const muted = isDark ? '#9CA3AF' : '#6B7280';
+  const glassCard = {
+    backgroundColor: isDark ? 'rgba(28,31,33,0.75)' : 'rgba(248,249,250,0.72)',
+    borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)',
+    borderWidth: 1,
+    ...(Platform.OS === 'web' ? { backdropFilter: 'blur(20px) saturate(180%)' as any } : {}),
+  };
 
   return (
-    <SafeAreaView style={[s.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[s.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <LinearGradient
+        colors={isDark ? ['#7C3AED15', '#151718'] : ['#7C3AED08', '#fff']}
+        style={StyleSheet.absoluteFill}
+      />
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={[s.heading, { color: colors.text }]}>QuoteFlow</Text>
+        <Animated.View entering={FadeInDown.springify().damping(14)}>
+          <Text style={[s.heading, { color: colors.text }]}>QuoteFlow</Text>
+        </Animated.View>
 
-        <View style={[s.qotdCard, { backgroundColor: accent }]}>
-          <Text style={s.qotdLabel}>QUOTE OF THE DAY</Text>
-          <Text style={s.qotdText}>{quoteOfTheDay.text}</Text>
-          <View style={s.qotdDivider} />
-          <Text style={s.qotdAuthor}>{quoteOfTheDay.author}</Text>
-        </View>
+        <Animated.View entering={FadeInDown.delay(100).springify().damping(14)}>
+          <LinearGradient
+            colors={['#7C3AED', '#A855F7']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={s.qotdCard}
+          >
+            <Text style={s.qotdLabel}>QUOTE OF THE DAY</Text>
+            <Text style={s.qotdText}>{quoteOfTheDay.text}</Text>
+            <View style={s.qotdDivider} />
+            <Text style={s.qotdAuthor}>{quoteOfTheDay.author}</Text>
+          </LinearGradient>
+        </Animated.View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.chipsRow}
-        >
-          {CATEGORIES.map((cat) => {
-            const active = selectedCategory === cat;
-            return (
-              <TouchableOpacity
-                key={cat}
-                activeOpacity={0.7}
-                onPress={() => setSelectedCategory(active ? null : cat)}
-                style={[
-                  s.chip,
-                  {
-                    backgroundColor: active ? accent : 'transparent',
-                    borderColor: active ? accent : borderColor,
-                  },
-                ]}
-              >
-                <Text style={[s.chipLabel, { color: active ? '#FFF' : colors.text }]}>
-                  {cat}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <Animated.View entering={FadeInDown.delay(150).springify().damping(14)}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.chipsRow}
+          >
+            {CATEGORIES.map((cat) => {
+              const active = selectedCategory === cat;
+              return (
+                <PressableScale
+                  key={cat}
+                  onPress={() => setSelectedCategory(active ? null : cat)}
+                  style={[
+                    s.chip,
+                    {
+                      backgroundColor: active ? accent : 'transparent',
+                      borderColor: active ? accent : (isDark ? 'rgba(255,255,255,0.15)' : '#E5E7EB'),
+                    },
+                  ]}
+                >
+                  <Text style={[s.chipLabel, { color: active ? '#FFF' : colors.text }]}>
+                    {cat}
+                  </Text>
+                </PressableScale>
+              );
+            })}
+          </ScrollView>
+        </Animated.View>
 
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => setShowFavoritesOnly((v) => !v)}
-          style={[s.favToggle, { borderColor }]}
-        >
-          <Text style={[s.favToggleIcon, { color: showFavoritesOnly ? '#EF4444' : muted }]}>
-            {showFavoritesOnly ? '\u2665' : '\u2661'}
-          </Text>
-          <Text style={[s.favToggleLabel, { color: colors.text }]}>
-            {showFavoritesOnly ? 'Showing Favorites' : 'Show Favorites'}
-          </Text>
-        </TouchableOpacity>
+        <Animated.View entering={FadeInDown.delay(200).springify().damping(14)}>
+          <PressableScale
+            onPress={() => setShowFavoritesOnly((v) => !v)}
+            style={[s.favToggle, { borderColor: isDark ? 'rgba(255,255,255,0.15)' : '#E5E7EB' }]}
+          >
+            <Text style={[s.favToggleIcon, { color: showFavoritesOnly ? '#EF4444' : muted }]}>
+              {showFavoritesOnly ? '\u2665' : '\u2661'}
+            </Text>
+            <Text style={[s.favToggleLabel, { color: colors.text }]}>
+              {showFavoritesOnly ? 'Showing Favorites' : 'Show Favorites'}
+            </Text>
+          </PressableScale>
+        </Animated.View>
 
         {filteredQuotes.length === 0 ? (
           <View style={s.emptyState}>
             <Text style={[s.emptyText, { color: muted }]}>No quotes yet</Text>
           </View>
         ) : (
-          filteredQuotes.map((q) => {
+          filteredQuotes.map((q, i) => {
             const isFav = favorites.includes(q.id);
             return (
-              <TouchableOpacity
+              <Animated.View
                 key={q.id}
-                activeOpacity={0.7}
-                onPress={() => toggleFavorite(q.id)}
-                style={[s.quoteCard, { backgroundColor: cardBg, borderColor }]}
+                entering={FadeInDown.delay(250 + i * 50).springify().damping(14)}
               >
-                <View style={s.quoteRow}>
-                  <View style={s.quoteContent}>
-                    <Text style={[s.quoteText, { color: colors.text }]}>{'\u201C'}{q.text}{'\u201D'}</Text>
-                    <Text style={[s.quoteAuthor, { color: muted }]}>
-                      {q.author} · {q.category}
+                <PressableScale
+                  onPress={() => toggleFavorite(q.id)}
+                  style={[s.quoteCard, glassCard]}
+                >
+                  <View style={s.quoteRow}>
+                    <View style={s.quoteContent}>
+                      <Text style={[s.quoteText, { color: colors.text }]}>{'\u201C'}{q.text}{'\u201D'}</Text>
+                      <Text style={[s.quoteAuthor, { color: muted }]}>
+                        {q.author} · {q.category}
+                      </Text>
+                    </View>
+                    <Text style={[s.heart, { color: isFav ? '#EF4444' : muted }]}>
+                      {isFav ? '\u2665' : '\u2661'}
                     </Text>
                   </View>
-                  <Text style={[s.heart, { color: isFav ? '#EF4444' : muted }]}>
-                    {isFav ? '\u2665' : '\u2661'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+                </PressableScale>
+              </Animated.View>
             );
           })
         )}
@@ -190,113 +239,26 @@ export default function IndexScreen() {
 }
 
 const s = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scroll: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-  },
-  heading: {
-    fontSize: 28,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-    marginBottom: 20,
-  },
-  qotdCard: {
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 24,
-  },
-  qotdLabel: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 1.5,
-    marginBottom: 12,
-  },
-  qotdText: {
-    color: '#FFF',
-    fontSize: 20,
-    fontWeight: '600',
-    lineHeight: 28,
-    fontStyle: 'italic',
-  },
-  qotdDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    marginVertical: 14,
-  },
-  qotdAuthor: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  chipsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 16,
-  },
-  chip: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1.5,
-  },
-  chipLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  favToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    marginBottom: 16,
-    alignSelf: 'flex-start',
-  },
-  favToggleIcon: {
-    fontSize: 18,
-  },
-  favToggleLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  quoteCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 18,
-    marginBottom: 12,
-  },
-  quoteRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  quoteContent: {
-    flex: 1,
-    marginRight: 12,
-  },
-  quoteText: {
-    fontSize: 15,
-    lineHeight: 22,
-    fontStyle: 'italic',
-  },
-  quoteAuthor: {
-    fontSize: 13,
-    marginTop: 8,
-  },
-  heart: {
-    fontSize: 22,
-    marginTop: 2,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 16,
-  },
+  container: { flex: 1 },
+  scroll: { paddingHorizontal: 20, paddingTop: 8 },
+  heading: { fontSize: 28, fontWeight: '700', letterSpacing: -0.5, marginBottom: 20 },
+  qotdCard: { borderRadius: 20, padding: 24, marginBottom: 24, shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 24, elevation: 10 },
+  qotdLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '600', letterSpacing: 1.5, marginBottom: 12 },
+  qotdText: { color: '#FFF', fontSize: 20, fontWeight: '600', lineHeight: 28, fontStyle: 'italic' },
+  qotdDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginVertical: 14 },
+  qotdAuthor: { color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '500' },
+  chipsRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  chip: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20, borderWidth: 1.5 },
+  chipLabel: { fontSize: 14, fontWeight: '600' },
+  favToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1.5, marginBottom: 16, alignSelf: 'flex-start' },
+  favToggleIcon: { fontSize: 18 },
+  favToggleLabel: { fontSize: 14, fontWeight: '600' },
+  quoteCard: { borderRadius: 16, padding: 18, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  quoteRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  quoteContent: { flex: 1, marginRight: 12 },
+  quoteText: { fontSize: 15, lineHeight: 22, fontStyle: 'italic' },
+  quoteAuthor: { fontSize: 13, marginTop: 8 },
+  heart: { fontSize: 22, marginTop: 2 },
+  emptyState: { alignItems: 'center', paddingVertical: 60 },
+  emptyText: { fontSize: 16 },
 });
